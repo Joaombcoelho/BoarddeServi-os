@@ -1,0 +1,97 @@
+package src.main.java.br.com.dio.persistence.dao;
+
+import com.mysql.cj.jdbc.StatementImpl;
+import lombok.AllArgsConstructor;
+import src.main.java.br.com.dio.dto.CardDetailsDTO;
+import src.main.java.br.com.dio.persistence.entity.CardEntity;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.Optional;
+
+import static java.util.Objects.nonNull;
+import static src.main.java.br.com.dio.persistence.converter.OffsetDateTimeConverter.toOffsetDateTime;
+
+@AllArgsConstructor
+
+public class CardDAO {
+    private final Connection connection;
+
+    public CardEntity insert(final CardEntity entity) throws SQLException {
+        var sql =
+                """
+                        INSERT INTO CARDS (title, description, `order`, board_column_id)
+                        VALUES (?, ?, ?, ?);
+                        """;
+        try (var statement = connection.prepareStatement(sql)) {
+            var i = 1;
+            statement.setString( i++, entity.getTitle());
+            statement.setString( i++, entity.getDescription());
+            statement.setInt(i++, entity.getOrder());
+            statement.setLong(i, entity.getBoardColumn().getId());
+            statement.executeUpdate();
+            if (statement instanceof StatementImpl impl) {
+                entity.setId(impl.getLastInsertID());
+            }
+        }
+        return entity;
+    }
+
+    public int getNextOrderForColumn(long boardColumnId) throws SQLException {
+        var sql = "SELECT COALESCE(MAX(`order`), -1) + 1 AS next_order FROM CARDS WHERE board_column_id = ?";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, boardColumnId);
+            var resultSet = statement.executeQuery();
+            if (resultSet.next()) {
+                return resultSet.getInt("next_order");
+            }
+            return 0;
+        }
+    }
+
+    public Optional<CardDetailsDTO> findById(final Long id) throws SQLException {
+        var sql =
+                """
+                        SELECT  c.id,
+                                c.title,
+                                c.description,
+                                 b.blocked_at,
+                                b.block_reason,
+                                c.board_column_id,
+                                bc.name,
+                                (SELECT COUNT(sub_b.id)
+                                        FROM BLOCKS sub_b
+                                        WHERE sub_b.card_id = c.id) AS blocks_amount
+                        FROM CARDS c
+                        LEFT JOIN BLOCKS b
+                            ON c.id = b.card_id
+                           AND b.unblocked_at IS NOT NULL
+                        INNER JOIN BOARDS_COLUMNS bc
+                            ON bc.id = c.board_column_id
+                        WHERE c.id = ?;
+                        """;
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, id);
+            statement.execute();
+            var resultSet = statement.getResultSet();
+            if (resultSet.next()) {
+                var dto = new CardDetailsDTO(
+                        resultSet.getLong("c.id"),
+                        resultSet.getString("c.title"),
+                        resultSet.getString("c.description"),
+                        nonNull(resultSet.getString("b.block_reason")),
+                        toOffsetDateTime(resultSet.getTimestamp("b.blocked_at")),
+                        resultSet.getString("block_reason"),
+                        resultSet.getInt("blocks_amount"),
+                        resultSet.getLong("board_column_id"),
+                        resultSet.getString("bc.name")
+                );
+                return Optional.of(dto);
+            }
+            return Optional.empty();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return Optional.empty();
+        }
+    }
+}
