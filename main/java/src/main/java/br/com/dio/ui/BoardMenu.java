@@ -1,6 +1,7 @@
 package src.main.java.br.com.dio.ui;
 
 import lombok.AllArgsConstructor;
+import src.main.java.br.com.dio.dto.BoardColumnInfoDTO;
 import src.main.java.br.com.dio.persistence.entity.BoardColumnEntity;
 import src.main.java.br.com.dio.persistence.entity.BoardEntity;
 import src.main.java.br.com.dio.persistence.entity.CardEntity;
@@ -58,10 +59,10 @@ public class BoardMenu {
 
     }
 
-    private void showCard() throws SQLException{
+    private void showCard() throws SQLException {
         System.out.println("Informe o id do card que deseja visializar");
         var selectedCardId = scanner.nextLong();
-        try (var connection = getConnection()){
+        try (var connection = getConnection()) {
             new CardQueryService(connection).findById(selectedCardId)
                     .ifPresentOrElse(
                             c -> {
@@ -82,19 +83,27 @@ public class BoardMenu {
 
     }
 
-    private void createCard() throws SQLException{
+    private void createCard() throws SQLException {
         var card = new CardEntity();
         System.out.println("Informe o título do card");
         card.setTitle(scanner.next());
         System.out.println("Informe a descrição do card");
         card.setDescription(scanner.next());
         card.setBoardColumn(entity.getInitialColumn());
-        try (var connection = getConnection()){
+        try (var connection = getConnection()) {
             new CardService(connection).insert(card);
         }
     }
 
-    private void moveCardToNextColunm() {
+    private void moveCardToNextColunm() throws SQLException{
+        System.out.println("Informe o id do card que deseja mover para a proxima coluna");
+        var cardId = scanner.nextLong();
+        var boardColumnsInfo = entity.getBoardColumns().stream()
+                .map(bc -> new BoardColumnInfoDTO(bc.getId(), bc.getOrder(), bc.getKind()))
+                .toList();
+        try (var connection = getConnection()) {
+            new CardService(connection).moveToNextColumn(cardId, boardColumnsInfo);
+        }
     }
 
     private void blockCard() {
