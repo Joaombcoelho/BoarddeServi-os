@@ -108,10 +108,33 @@ public class BoardMenu {
         }
     }
 
-    private void blockCard() {
+    private void blockCard() throws SQLException {
+        System.out.println("Informeo id do card que deseja bloquear");
+        var cardId = scanner.nextLong();
+        System.out.println("Informe o motivo do bloqueio");
+        var reason = scanner.next();
+        var boardColumnsInfo = entity.getBoardColumns().stream()
+                .map(bc -> new BoardColumnInfoDTO(bc.getId(), bc.getOrder(), bc.getKind()))
+                .toList();
+        try (var connection = getConnection()) {
+            new CardService(connection).block(cardId, reason, boardColumnsInfo);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
-    private void unblockCard() {
+    private void unblockCard() throws SQLException {
+        System.out.println("Informeo id do card que deseja desbloquear");
+        var cardId = scanner.nextLong();
+        System.out.println("Informe o motivo do desbloqueio");
+        var reason = scanner.next();
+        try (var connection = getConnection()) {
+            new CardService(connection).unblock(cardId, reason);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     private void cancelCard() throws SQLException {
